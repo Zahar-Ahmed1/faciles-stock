@@ -1,0 +1,23 @@
+php -S localhost:8888 -t api
+
+Responsable
+stock.manager@example.com
+password
+
+admin@example.com peut en plus supprimer un client, un site ou une catégorie, et créer, modifier ou supprimer un utilisateur.
+
+manager@example.com peut consulter et modifier ces données, mais pas les supprimer, et il ne gère pas les comptes.
+
+
+Pour un autre site, il faut un autre responsable, par ex. :
+
+sara.elamrani@example.com     →      IAM Centre Ville
+mourad.idrissi@awb.ma         →      AWB Centre Technologique
+stock.manager@example.com     ->     Oracle Rabat HQ
+
+
+
+
+
+
+

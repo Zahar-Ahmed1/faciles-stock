@@ -1,0 +1,327 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Analyses</h2>
+        <p class="subtitle">Les chiffres se mettent à jour dès que vous changez un filtre.</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-ghost" (click)="reset()" [disabled]="activeFilterCount === 0">
+          Réinitialiser
+        </button>
+        <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+      </div>
+    </header>
+
+    <section class="filters" [class.closed]="!filtersOpen">
+      <button
+        type="button"
+        class="filters-toggle"
+        (click)="filtersOpen = !filtersOpen"
+        [attr.aria-expanded]="filtersOpen"
+      >
+        <span>
+          <strong>Filtres</strong>
+          <small>
+            {{ periodLabel }}
+            <ng-container *ngIf="activeFilterCount"> · {{ activeFilterCount }} actif(s)</ng-container>
+          </small>
+        </span>
+        <span class="toggle-label">{{ filtersOpen ? 'Fermer' : 'Ouvrir' }}</span>
+      </button>
+
+      <div class="filters-body" *ngIf="filtersOpen">
+      <div class="filter-block">
+        <span class="filter-label">Période</span>
+        <div class="chips">
+          <button
+            type="button"
+            *ngFor="let item of periods"
+            class="chip"
+            [class.on]="period === item.id"
+            (click)="setPeriod(item.id)"
+          >
+            {{ item.label }}
+          </button>
+          <button type="button" class="chip" [class.on]="period === 'custom'" (click)="setPeriod('custom')">
+            Personnalisé
+          </button>
+        </div>
+        <div class="dates">
+          <label>
+            Du
+            <input type="date" [ngModel]="fromDate" (ngModelChange)="onFrom($event)" />
+          </label>
+          <label>
+            Au
+            <input type="date" [ngModel]="toDate" (ngModelChange)="onTo($event)" />
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <label class="field" *ngIf="clients.length > 1">
+          Client
+          <select [ngModel]="clientId" (ngModelChange)="onClient($event)">
+            <option [ngValue]="null">Tous les clients</option>
+            <option *ngFor="let client of clients" [ngValue]="client.id">{{ client.name }}</option>
+          </select>
+        </label>
+
+        <label class="field" *ngIf="categories.length">
+          Catégorie
+          <select [ngModel]="categoryId" (ngModelChange)="onCategory($event)">
+            <option [ngValue]="null">Toutes les catégories</option>
+            <option *ngFor="let category of categories" [ngValue]="category.id">{{ category.name }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          Produit
+          <select [ngModel]="productId" (ngModelChange)="onProduct($event)">
+            <option [ngValue]="null">Tous les produits</option>
+            <option *ngFor="let product of productChoices" [ngValue]="product.id">
+              {{ product.reference ? product.reference + ' · ' + product.name : product.name }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          Recherche
+          <input
+            type="search"
+            [ngModel]="query"
+            (ngModelChange)="query = $event"
+            placeholder="Nom ou référence"
+          />
+        </label>
+      </div>
+
+      <div class="filter-block">
+        <span class="filter-label">Sites</span>
+        <div class="chips">
+          <button type="button" class="chip" [class.on]="siteIds.length === 0" (click)="siteIds = []">
+            Tous les sites
+          </button>
+          <button
+            type="button"
+            class="chip"
+            *ngFor="let site of visibleSites"
+            [class.on]="siteIds.includes(site.id)"
+            (click)="toggleSite(site.id)"
+          >
+            {{ site.name }}
+          </button>
+        </div>
+      </div>
+
+      <div class="split-filters">
+        <div class="filter-block">
+          <span class="filter-label">État du stock</span>
+          <div class="chips">
+            <button
+              type="button"
+              class="chip"
+              *ngFor="let item of statuses"
+              [class.on]="stockStatus === item.id"
+              (click)="setStatus(item.id)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </div>
+        <div class="filter-block">
+          <span class="filter-label">Flux</span>
+          <div class="chips">
+            <button
+              type="button"
+              class="chip"
+              *ngFor="let item of flows"
+              [class.on]="flow === item.id"
+              (click)="flow = item.id"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <p class="banner error" *ngIf="error">{{ error }}</p>
+    <p class="loading" *ngIf="loading">Chargement des données…</p>
+
+    <ng-container *ngIf="!loading">
+      <p class="insight">{{ insight }}</p>
+
+      <section class="kpis">
+        <article class="kpi stock">
+          <span>Unités en stock</span>
+          <strong>{{ format(stockUnits) }}</strong>
+          <small>{{ scopedStocks.length }} fiche(s)</small>
+        </article>
+        <article class="kpi exit">
+          <span>Sorties</span>
+          <strong>{{ format(exitQty) }}</strong>
+          <small>Consommation sur la période</small>
+        </article>
+        <article class="kpi entry">
+          <span>Entrées</span>
+          <strong>{{ format(entryQty) }}</strong>
+          <small>Livraisons et ajouts</small>
+        </article>
+        <article class="kpi balance">
+          <span>Solde</span>
+          <strong [class.up]="entryQty - exitQty > 0" [class.down]="entryQty - exitQty < 0">
+            {{ signed(entryQty - exitQty) }}
+          </strong>
+          <small>{{ format(adjustmentQty) }} en ajustement</small>
+        </article>
+        <article class="kpi alert">
+          <span>Alertes ouvertes</span>
+          <strong>{{ format(openAlerts) }}</strong>
+          <small>{{ format(periodAlerts) }} créée(s) sur la période</small>
+        </article>
+        <article class="kpi delivery">
+          <span>Livraisons confirmées</span>
+          <strong>{{ format(confirmedQty) }}</strong>
+          <small>Unités validées sur la période</small>
+        </article>
+      </section>
+
+      <section class="charts">
+        <article class="card">
+          <header class="card-head">
+            <h3>Consommation par produit</h3>
+            <p>Sorties de la sélection, du plus consommé au moins consommé.</p>
+          </header>
+          <div class="bars" *ngIf="consumptionBars.length; else noConsumption">
+            <div class="bar-row" *ngFor="let row of consumptionBars">
+              <span class="bar-name">{{ row.name }}</span>
+              <div class="track">
+                <div class="fill exit" [style.width.%]="row.width"></div>
+              </div>
+              <span class="bar-qty">{{ format(row.qty) }}</span>
+            </div>
+          </div>
+          <ng-template #noConsumption><p class="empty">Aucune sortie pour ces filtres.</p></ng-template>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <h3>Activité dans le temps</h3>
+            <p>Entrées et sorties. Au-delà de 14 jours, les barres sont regroupées par semaine.</p>
+          </header>
+          <div class="columns" *ngIf="activity.length; else noActivity">
+            <div class="column" *ngFor="let bucket of activity">
+              <div class="pair">
+                <div class="col entry" [style.height.%]="barHeight(bucket.entry)" [title]="'Entrées ' + format(bucket.entry)"></div>
+                <div class="col exit" [style.height.%]="barHeight(bucket.exit)" [title]="'Sorties ' + format(bucket.exit)"></div>
+              </div>
+              <span>{{ bucket.label }}</span>
+            </div>
+          </div>
+          <div class="legend" *ngIf="activity.length">
+            <span><i class="swatch entry"></i> Entrées</span>
+            <span><i class="swatch exit"></i> Sorties</span>
+          </div>
+          <ng-template #noActivity><p class="empty">Aucun flux entrée ou sortie pour ces filtres.</p></ng-template>
+        </article>
+      </section>
+
+      <section class="charts">
+        <article class="card health">
+          <header class="card-head">
+            <h3>État du stock</h3>
+            <p>Répartition actuelle. Cliquez un état pour filtrer le reste de la page.</p>
+          </header>
+          <div class="health-body">
+            <div class="donut" [style.background]="donutGradient">
+              <div class="donut-hole">
+                <strong>{{ health.total }}</strong>
+                <span>produits</span>
+              </div>
+            </div>
+            <div class="health-actions">
+              <button type="button" [class.on]="stockStatus === 'NORMAL'" (click)="setStatus('NORMAL')">
+                <i class="swatch ok"></i> En stock · {{ health.normal }}
+              </button>
+              <button type="button" [class.on]="stockStatus === 'LOW_STOCK'" (click)="setStatus('LOW_STOCK')">
+                <i class="swatch low"></i> Stock bas · {{ health.low }}
+              </button>
+              <button type="button" [class.on]="stockStatus === 'OUT_OF_STOCK'" (click)="setStatus('OUT_OF_STOCK')">
+                <i class="swatch empty"></i> Rupture · {{ health.empty }}
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <h3>Comparaison des sites</h3>
+            <p>Stock actuel et mouvements de la période.</p>
+          </header>
+          <div class="table-wrap" *ngIf="siteRows.length; else noSites">
+            <table>
+              <thead>
+                <tr>
+                  <th>Site</th>
+                  <th class="num">Unités</th>
+                  <th class="num">Stock bas</th>
+                  <th class="num">Ruptures</th>
+                  <th class="num">Entrées</th>
+                  <th class="num">Sorties</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let site of siteRows">
+                  <td class="name" data-label="Site">{{ site.name }}</td>
+                  <td class="num" data-label="Unités">{{ format(site.units) }}</td>
+                  <td class="num" data-label="Stock bas">{{ site.low }}</td>
+                  <td class="num" data-label="Ruptures">{{ site.empty }}</td>
+                  <td class="num" data-label="Entrées">{{ format(site.entries) }}</td>
+                  <td class="num" data-label="Sorties">{{ format(site.exits) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noSites><p class="empty">Aucun site pour ces filtres.</p></ng-template>
+        </article>
+      </section>
+
+      <section class="card detail">
+        <header class="card-head">
+          <h3>Détail par produit</h3>
+          <p>Stock actuel croisé avec les entrées et les sorties de la période.</p>
+        </header>
+        <div class="table-wrap" *ngIf="productRows.length; else noRows">
+          <table>
+            <thead>
+              <tr>
+                <th>Produit</th>
+                <th *ngIf="categories.length">Catégorie</th>
+                <th class="num">Stock</th>
+                <th class="num">Entrées</th>
+                <th class="num">Sorties</th>
+                <th class="num">Solde</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of productRows">
+                <td class="name" data-label="Produit">{{ row.name }}</td>
+                <td *ngIf="categories.length" data-label="Catégorie">{{ row.category }}</td>
+                <td class="num" data-label="Stock">{{ format(row.stock) }}</td>
+                <td class="num" data-label="Entrées">{{ format(row.entries) }}</td>
+                <td class="num" data-label="Sorties">{{ format(row.exits) }}</td>
+                <td class="num" data-label="Solde" [class.up]="row.net > 0" [class.down]="row.net < 0">{{ signed(row.net) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #noRows><p class="empty">Aucun produit pour ces filtres.</p></ng-template>
+      </section>
+    </ng-container>
+  </main>
+</div>

@@ -1,0 +1,248 @@
+<div class="resp-shell">
+  <header class="resp-top">
+    <div class="brand">
+      <div class="logo">FX</div>
+      <div>
+        <h1>Facilyx</h1>
+        <p class="site-line">{{ siteName || '…' }}</p>
+        <p class="user-line">{{ auth.currentUser?.firstName }} · Mon stock</p>
+      </div>
+    </div>
+    <button type="button" class="icon-btn" (click)="logout()" title="Déconnexion">⏻</button>
+  </header>
+
+  <div class="banner warn" *ngIf="lowCount > 0">
+    Facilyx a été prévenu pour {{ lowCount }} produit(s)
+  </div>
+
+  <section class="proposals" *ngIf="proposals.length">
+    <h2>Livraisons à confirmer</h2>
+    <p class="proposals-hint">Le stock augmente seulement après votre confirmation et celle du manager du site.</p>
+    <article class="proposal" *ngFor="let p of proposals">
+      <div>
+        <strong>{{ p.productName || ('Produit #' + p.productId) }}</strong>
+        <span>+{{ p.quantity }}</span>
+      </div>
+      <p *ngIf="p.proposedByName">Proposé par {{ p.proposedByName }}</p>
+      <p>{{ p.managerConfirmedBy ? 'Le manager a confirmé.' : 'En attente du manager.' }}</p>
+      <div class="proposal-actions" *ngIf="!p.responsableConfirmedBy">
+        <button
+          type="button"
+          class="btn-refuse"
+          [disabled]="proposalBusy.has(p.id)"
+          (click)="rejectProposal(p)"
+        >
+          Refuser
+        </button>
+        <button
+          type="button"
+          class="btn-confirm"
+          [disabled]="proposalBusy.has(p.id)"
+          (click)="confirmProposal(p)"
+        >
+          {{ proposalBusy.has(p.id) ? '…' : 'Confirmer l\'ajout' }}
+        </button>
+      </div>
+      <p *ngIf="p.responsableConfirmedBy">Vous avez confirmé. En attente du manager.</p>
+    </article>
+  </section>
+
+  <section class="finder" *ngIf="!loading && stocks.length">
+    <label class="search">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input
+        type="search"
+        name="product-search"
+        [(ngModel)]="query"
+        placeholder="Rechercher un produit"
+        autocomplete="off"
+        enterkeyhint="search"
+      />
+      <button
+        *ngIf="query"
+        type="button"
+        class="clear-search"
+        (click)="query = ''"
+        aria-label="Effacer la recherche"
+      >
+        ✕
+      </button>
+    </label>
+
+    <div class="filters" role="group" aria-label="Filtrer le stock">
+      <button type="button" [class.active]="statusFilter === 'ALL'" (click)="setFilter('ALL')">
+        Tous <strong>{{ stocks.length }}</strong>
+      </button>
+      <button
+        type="button"
+        class="ok"
+        [class.active]="statusFilter === 'NORMAL'"
+        (click)="setFilter('NORMAL')"
+      >
+        En stock <strong>{{ okCount }}</strong>
+      </button>
+      <button
+        type="button"
+        class="low"
+        [class.active]="statusFilter === 'LOW_STOCK'"
+        (click)="setFilter('LOW_STOCK')"
+      >
+        Stock bas <strong>{{ lowOnlyCount }}</strong>
+      </button>
+      <button
+        type="button"
+        class="empty"
+        [class.active]="statusFilter === 'OUT_OF_STOCK'"
+        (click)="setFilter('OUT_OF_STOCK')"
+      >
+        Vide <strong>{{ emptyCount }}</strong>
+      </button>
+    </div>
+    <p class="result-line">{{ visibleStocks.length }} produit(s)</p>
+  </section>
+
+  <div class="toolbar">
+    <button type="button" class="btn-add" (click)="openCreate()">＋ Produit</button>
+    <button type="button" class="btn-refresh" (click)="load()" aria-label="Actualiser">⟳</button>
+  </div>
+
+  <div *ngIf="error" class="error-box">{{ error }}</div>
+
+  <div *ngIf="loading" class="loading">Chargement…</div>
+
+  <div *ngIf="!loading && stocks.length === 0 && !error" class="empty">
+    <div class="empty-icon">📦</div>
+    <p>Aucun produit</p>
+    <button type="button" class="btn-add" (click)="openCreate()">Ajouter</button>
+  </div>
+
+  <div *ngIf="!loading && stocks.length && visibleStocks.length === 0" class="empty">
+    <div class="empty-icon">⌕</div>
+    <p>Aucun produit ne correspond.</p>
+    <button type="button" class="btn-reset" (click)="clearSearch()">Tout afficher</button>
+  </div>
+
+  <div class="cards" *ngIf="!loading && visibleStocks.length">
+    <article
+      class="card"
+      *ngFor="let s of visibleStocks"
+      [class.low]="statusOf(s) === 'LOW_STOCK'"
+      [class.empty-stock]="statusOf(s) === 'OUT_OF_STOCK'"
+    >
+      <div class="hero">
+        <img *ngIf="imageSrc(s.productImageUrl) as photo" [src]="photo" [alt]="s.productName || ''" />
+        <span *ngIf="!imageSrc(s.productImageUrl)">Aucune photo</span>
+        <div class="mini-actions">
+          <button type="button" (click)="openEdit(s)" title="Modifier">✎</button>
+          <button type="button" (click)="deleteProduct(s)" title="Supprimer">✕</button>
+        </div>
+      </div>
+
+      <div class="card-body">
+      <div class="meta">
+        <h2>{{ s.productName || ('#' + s.productId) }}</h2>
+        <span class="pill" [attr.data-status]="statusOf(s)">{{ statusLabel(s) }}</span>
+      </div>
+
+      <div class="qty">{{ s.quantity }}</div>
+      <div class="min">min {{ s.minimumQuantity }}</div>
+
+      <div class="remove-box">
+        <span class="remove-label">Retirer</span>
+        <div class="qty-picker">
+          <button
+            type="button"
+            class="bump"
+            [disabled]="qtyToRemove(s) <= 1 || busyIds.has(s.id)"
+            (click)="bumpQty(s, -1)"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            min="1"
+            [max]="s.quantity"
+            [ngModel]="qtyToRemove(s)"
+            (ngModelChange)="setQtyToRemove(s, $event)"
+            [disabled]="s.quantity <= 0 || busyIds.has(s.id)"
+            inputmode="numeric"
+          />
+          <button
+            type="button"
+            class="bump"
+            [disabled]="qtyToRemove(s) >= s.quantity || busyIds.has(s.id)"
+            (click)="bumpQty(s, 1)"
+          >
+            +
+          </button>
+        </div>
+        <button
+          type="button"
+          class="btn-minus"
+          [disabled]="s.quantity <= 0 || busyIds.has(s.id)"
+          (click)="decrement(s)"
+        >
+          {{ busyIds.get(s.id) === 'decrement' ? '…' : '− ' + qtyToRemove(s) }}
+        </button>
+      </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="modal-backdrop" *ngIf="showForm" (click)="closeForm()"></div>
+  <div class="modal" *ngIf="showForm">
+    <h3>{{ editing ? 'Modifier' : 'Nouveau produit' }}</h3>
+    <form [formGroup]="form" (ngSubmit)="saveProduct()">
+      <div class="photo">
+        <span class="photo-title">Photo du produit</span>
+        <div class="photo-preview">
+          <img *ngIf="imagePreview" [src]="imagePreview" alt="Aperçu du produit" />
+          <span *ngIf="!imagePreview">Aucune photo</span>
+        </div>
+        <div class="photo-actions">
+          <button type="button" class="btn-photo" (click)="cameraInput.click()">
+            Prendre une photo
+          </button>
+          <button type="button" class="btn-photo file" (click)="fileInput.click()">
+            Choisir un PNG
+          </button>
+        </div>
+        <input
+          #cameraInput
+          class="file-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          (change)="onImageSelected($event)"
+        />
+        <input
+          #fileInput
+          class="file-input"
+          type="file"
+          accept="image/png,.png"
+          (change)="onImageSelected($event)"
+        />
+      </div>
+      <label>
+        Nom
+        <input type="text" formControlName="name" placeholder="Ex: Papier toilette" />
+      </label>
+      <label>
+        Quantité
+        <input type="number" formControlName="quantity" min="0" />
+      </label>
+      <label>
+        Stock minimum
+        <input type="number" formControlName="minimumQuantity" min="0" />
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" (click)="closeForm()">Annuler</button>
+        <button type="submit" class="btn-primary" [disabled]="form.invalid || saving">
+          {{ saving ? '…' : 'Enregistrer' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" *ngIf="toast" [attr.data-type]="toast.type">{{ toast.text }}</div>
+</div>

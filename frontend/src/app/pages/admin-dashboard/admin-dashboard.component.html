@@ -1,0 +1,362 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Tableau de bord</h2>
+        <p class="subtitle" *ngIf="auth.hasRole('ADMIN'); else managerIntro">
+          Vue rapide du stock, des alertes et des comptes.
+        </p>
+        <ng-template #managerIntro>
+          <p class="subtitle">
+            {{ selectedSiteName ? 'Supervision de ' + selectedSiteName + '.' : 'Aucun site n’est affecté à ce compte.' }}
+          </p>
+        </ng-template>
+      </div>
+      <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+    </header>
+
+    <div *ngIf="error && !formOpen && !deleteTarget" class="alert-error">{{ error }}</div>
+    <div *ngIf="toast" class="toast-ok">{{ toast }}</div>
+    <div *ngIf="loading" class="loading">Chargement…</div>
+
+    <ng-container *ngIf="!loading">
+      <p class="empty" *ngIf="auth.hasRole('MANAGER') && !selectedSiteId">
+        Aucun site n’est affecté à ce compte. L’admin doit choisir le site de ce manager.
+      </p>
+      <ng-container *ngIf="!auth.hasRole('MANAGER') || selectedSiteId">
+      <section class="stats">
+        <article class="kpi stock">
+          <span>Produits</span>
+          <strong>{{ productCount }}</strong>
+        </article>
+        <article class="kpi low">
+          <span>Stock bas</span>
+          <strong>{{ lowCount }}</strong>
+        </article>
+        <article class="kpi empty">
+          <span>Ruptures</span>
+          <strong>{{ emptyCount }}</strong>
+        </article>
+        <article class="kpi pending">
+          <span>Livraisons en attente</span>
+          <strong>{{ pendingProposals.length }}</strong>
+        </article>
+      </section>
+
+      <section class="sites-board card" [class.closed]="!isOpen('sites')">
+        <div class="card-head">
+          <button type="button" class="section-toggle" (click)="toggleSection('sites')" [attr.aria-expanded]="isOpen('sites')">
+            <span>
+              <h3>{{ auth.hasRole('MANAGER') ? 'Mon site' : 'Sites' }}</h3>
+              <p *ngIf="auth.hasRole('ADMIN')">Cliquez un site pour voir ses alertes et ses mouvements. Cliquez encore pour tout afficher.</p>
+              <p *ngIf="auth.hasRole('MANAGER')">Les chiffres, alertes et mouvements concernent uniquement ce site.</p>
+            </span>
+            <span class="toggle-label">{{ isOpen('sites') ? 'Fermer' : 'Ouvrir' }}</span>
+          </button>
+          <button *ngIf="auth.hasRole('ADMIN') && selectedSiteId" type="button" class="btn-ghost" (click)="clearSite()">
+            Tous les sites
+          </button>
+        </div>
+        <div class="site-grid" *ngIf="isOpen('sites') && siteStats.length; else noSites">
+          <button
+            type="button"
+            class="site-card"
+            *ngFor="let row of siteStats"
+            [class.on]="selectedSiteId === row.site.id"
+            (click)="selectSite(row.site.id)"
+          >
+            <span class="site-name">{{ row.site.name }}</span>
+            <span class="site-city">{{ row.site.clientName || 'Client' }} · {{ row.site.city || '—' }}</span>
+            <span class="site-who" *ngIf="row.responsables.length; else noOwner">
+              {{ row.responsables[0].firstName }} {{ row.responsables[0].lastName }}
+            </span>
+            <ng-template #noOwner><span class="site-who missing">Aucun responsable</span></ng-template>
+            <span class="mini-bar" aria-hidden="true">
+              <i class="ok" [style.flex]="row.ok || 0"></i>
+              <i class="low" [style.flex]="row.low || 0"></i>
+              <i class="empty" [style.flex]="row.empty || 0"></i>
+            </span>
+            <span class="site-nums">
+              <span><b>{{ row.ok }}</b> en stock</span>
+              <span><b>{{ row.low }}</b> bas</span>
+              <span><b>{{ row.empty }}</b> vides</span>
+            </span>
+            <span class="site-foot">
+              {{ row.openAlerts }} alerte(s)
+              <em *ngIf="row.lastAlert">· {{ formatDate(row.lastAlert) }}</em>
+              <em *ngIf="row.pending">· {{ row.pending }} livraison(s)</em>
+            </span>
+          </button>
+        </div>
+        <ng-template #noSites><p class="empty" *ngIf="isOpen('sites')">Aucun site.</p></ng-template>
+      </section>
+
+      <section class="block">
+        <article class="card" [class.closed]="!isOpen('deliveries')">
+          <div class="card-head">
+            <button type="button" class="section-toggle" (click)="toggleSection('deliveries')" [attr.aria-expanded]="isOpen('deliveries')">
+              <span>
+                <h3>Livraisons en attente{{ selectedSiteName ? ' · ' + selectedSiteName : '' }}</h3>
+                <p class="hint">Le stock augmente seulement après la confirmation du manager et du responsable.</p>
+              </span>
+              <span class="toggle-label">{{ isOpen('deliveries') ? 'Fermer' : 'Ouvrir' }}</span>
+            </button>
+          </div>
+          <div class="table-wrap" *ngIf="isOpen('deliveries') && pendingProposals.length; else noPending">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Produit</th>
+                  <th *ngIf="auth.hasRole('ADMIN')">Site</th>
+                  <th>Quantité</th>
+                  <th>Confirmations</th>
+                  <th *ngIf="auth.hasRole('MANAGER')"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let proposal of pendingProposals">
+                  <td><strong>{{ proposal.productName || ('Produit #' + proposal.productId) }}</strong></td>
+                  <td *ngIf="auth.hasRole('ADMIN')" data-label="Site">{{ proposal.siteName || ('Site #' + proposal.siteId) }}</td>
+                  <td data-label="Quantité">{{ proposal.quantity }}</td>
+                  <td data-label="Confirmations">
+                    <span class="muted">{{ confirmationLine(proposal) }}</span>
+                  </td>
+                  <td class="actions" *ngIf="auth.hasRole('MANAGER')" data-label="Action">
+                    <ng-container *ngIf="!proposal.managerConfirmedBy; else managerDone">
+                      <button
+                        type="button"
+                        class="btn-primary"
+                        [disabled]="proposalBusy.has(proposal.id)"
+                        (click)="confirmDelivery(proposal)"
+                      >
+                        Confirmer
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-danger"
+                        [disabled]="proposalBusy.has(proposal.id)"
+                        (click)="refuseDelivery(proposal)"
+                      >
+                        Refuser
+                      </button>
+                    </ng-container>
+                    <ng-template #managerDone><span class="muted">Confirmé</span></ng-template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noPending><p class="empty" *ngIf="isOpen('deliveries')">Aucune livraison en attente.</p></ng-template>
+        </article>
+      </section>
+
+      <section class="split">
+        <article class="card" [class.closed]="!isOpen('alerts')">
+          <div class="card-head">
+            <button type="button" class="section-toggle" (click)="toggleSection('alerts')" [attr.aria-expanded]="isOpen('alerts')">
+              <span>
+                <h3>Alertes{{ selectedSiteName ? ' · ' + selectedSiteName : '' }}</h3>
+                <p>{{ openAlerts.length }} alerte(s) ouverte(s)</p>
+              </span>
+              <span class="toggle-label">{{ isOpen('alerts') ? 'Fermer' : 'Ouvrir' }}</span>
+            </button>
+          </div>
+          <div class="table-wrap" *ngIf="isOpen('alerts') && openAlerts.length; else noAlerts">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Produit</th>
+                  <th *ngIf="auth.hasRole('ADMIN')">Site</th>
+                  <th>Stock</th>
+                  <th>Seuil</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let alert of openAlerts.slice(0, 5)">
+                  <td>
+                    <strong>{{ alert.productName || ('Produit #' + alert.productId) }}</strong>
+                    <span class="muted">{{ alert.type === 'OUT_OF_STOCK' ? 'Rupture' : 'Stock bas' }}</span>
+                  </td>
+                  <td *ngIf="auth.hasRole('ADMIN')" data-label="Site">{{ alert.siteName || ('Site #' + alert.siteId) }}</td>
+                  <td data-label="Stock">{{ alert.quantityAtAlert ?? '—' }}</td>
+                  <td data-label="Seuil">{{ alert.threshold ?? '—' }}</td>
+                  <td data-label="Date">{{ formatDate(alert.createdAt) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noAlerts><p class="empty" *ngIf="isOpen('alerts')">Aucune alerte ouverte.</p></ng-template>
+        </article>
+
+        <article class="card" [class.closed]="!isOpen('movements')">
+          <div class="card-head">
+            <button type="button" class="section-toggle" (click)="toggleSection('movements')" [attr.aria-expanded]="isOpen('movements')">
+              <span>
+                <h3>Mouvements{{ selectedSiteName ? ' · ' + selectedSiteName : '' }}</h3>
+                <p>Dernières opérations du stock</p>
+              </span>
+              <span class="toggle-label">{{ isOpen('movements') ? 'Fermer' : 'Ouvrir' }}</span>
+            </button>
+          </div>
+          <div class="table-wrap" *ngIf="isOpen('movements') && visibleMovements.length; else noMoves">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Produit</th>
+                  <th *ngIf="auth.hasRole('ADMIN')">Site</th>
+                  <th>Qté</th>
+                  <th>Après</th>
+                  <th>Par</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let move of visibleMovements.slice(0, 5)">
+                  <td>
+                    <strong>{{ move.productName || ('Produit #' + move.productId) }}</strong>
+                    <span class="muted">{{ movementLabel(move.type) }}</span>
+                  </td>
+                  <td *ngIf="auth.hasRole('ADMIN')" data-label="Site">{{ move.siteName || ('Site #' + move.siteId) }}</td>
+                  <td data-label="Qté">{{ move.quantity }}</td>
+                  <td data-label="Après">{{ move.stockBefore }} → {{ move.stockAfter }}</td>
+                  <td data-label="Par">{{ move.userFullName || '—' }}</td>
+                  <td data-label="Date">{{ formatDate(move.createdAt) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noMoves><p class="empty" *ngIf="isOpen('movements')">Aucun mouvement.</p></ng-template>
+        </article>
+      </section>
+      </ng-container>
+
+      <section class="split" *ngIf="canManageAccounts">
+        <article class="card" [class.closed]="!isOpen('responsables')">
+          <div class="card-head">
+            <button type="button" class="section-toggle" (click)="toggleSection('responsables')" [attr.aria-expanded]="isOpen('responsables')">
+              <span>
+                <h3>Responsables</h3>
+                <p>{{ responsables.length }} compte(s). Chaque responsable gère le stock de son site.</p>
+              </span>
+              <span class="toggle-label">{{ isOpen('responsables') ? 'Fermer' : 'Ouvrir' }}</span>
+            </button>
+            <button type="button" class="btn-primary" (click)="openCreate('STOCK_MANAGER')">＋ Responsable</button>
+          </div>
+          <div class="confirm" *ngIf="isOpen('responsables') && deleteTarget?.role === 'STOCK_MANAGER'">
+            <p>Supprimer {{ deleteTarget?.firstName }} {{ deleteTarget?.lastName }} ?</p>
+            <div>
+              <button type="button" class="btn-ghost" [disabled]="saving" (click)="cancelDelete()">Annuler</button>
+              <button type="button" class="btn-danger" [disabled]="saving" (click)="confirmDelete()">
+                {{ saving ? 'Suppression…' : 'Supprimer' }}
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap" *ngIf="isOpen('responsables') && responsables.length; else noResp">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Site</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of responsables">
+                  <td>
+                    <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                    <span class="muted">{{ user.email }}</span>
+                  </td>
+                  <td data-label="Site">{{ siteName(user.siteId) }}</td>
+                  <td class="actions">
+                    <button type="button" class="btn-ghost" (click)="openEdit(user)">Modifier</button>
+                    <button type="button" class="btn-danger" (click)="askDelete(user)">Supprimer</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noResp><p class="empty" *ngIf="isOpen('responsables')">Aucun responsable.</p></ng-template>
+        </article>
+
+        <article class="card" [class.closed]="!isOpen('managers')">
+          <div class="card-head">
+            <button type="button" class="section-toggle" (click)="toggleSection('managers')" [attr.aria-expanded]="isOpen('managers')">
+              <span>
+                <h3>Managers</h3>
+                <p>{{ managers.length }} compte(s). Chaque manager supervise le tableau et l’historique de son site.</p>
+              </span>
+              <span class="toggle-label">{{ isOpen('managers') ? 'Fermer' : 'Ouvrir' }}</span>
+            </button>
+            <button type="button" class="btn-primary" (click)="openCreate('MANAGER')">＋ Manager</button>
+          </div>
+          <div class="confirm" *ngIf="isOpen('managers') && deleteTarget?.role === 'MANAGER'">
+            <p>Supprimer {{ deleteTarget?.firstName }} {{ deleteTarget?.lastName }} ?</p>
+            <div>
+              <button type="button" class="btn-ghost" [disabled]="saving" (click)="cancelDelete()">Annuler</button>
+              <button type="button" class="btn-danger" [disabled]="saving" (click)="confirmDelete()">
+                {{ saving ? 'Suppression…' : 'Supprimer' }}
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap" *ngIf="isOpen('managers') && managers.length; else noManagers">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Site</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of managers">
+                  <td>
+                    <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                    <span class="muted">{{ user.email }}</span>
+                  </td>
+                  <td data-label="Site">{{ siteName(user.siteId) }}</td>
+                  <td class="actions">
+                    <button type="button" class="btn-ghost" (click)="openEdit(user)">Modifier</button>
+                    <button type="button" class="btn-danger" (click)="askDelete(user)">Supprimer</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noManagers><p class="empty" *ngIf="isOpen('managers')">Aucun manager.</p></ng-template>
+        </article>
+      </section>
+    </ng-container>
+  </main>
+</div>
+
+<div class="modal-backdrop" *ngIf="formOpen" (click)="closeForm()"></div>
+<section class="modal" *ngIf="formOpen" role="dialog" aria-modal="true">
+  <h3>{{ roleTitle(!!editingId) }}</h3>
+  <p class="hint" *ngIf="role === 'STOCK_MANAGER'">Ce compte ne voit que le stock du site choisi.</p>
+  <p class="hint" *ngIf="role === 'MANAGER'">Ce compte supervise le tableau et l’historique du site choisi.</p>
+  <p class="hint" *ngIf="editingId">Laissez le mot de passe vide pour conserver l’actuel.</p>
+  <div *ngIf="error" class="alert-error">{{ error }}</div>
+  <label>Prénom <input type="text" name="firstName" [(ngModel)]="firstName" /></label>
+  <label>Nom <input type="text" name="lastName" [(ngModel)]="lastName" /></label>
+  <label>E-mail <input type="email" name="email" [(ngModel)]="email" /></label>
+  <label>
+    {{ editingId ? 'Nouveau mot de passe' : 'Mot de passe' }}
+    <input type="password" name="password" [(ngModel)]="password" />
+  </label>
+  <label *ngIf="role === 'STOCK_MANAGER' || role === 'MANAGER'">
+    Site
+    <select name="siteId" [(ngModel)]="siteId">
+      <option [ngValue]="null">Choisir un site</option>
+      <option *ngFor="let site of sites" [ngValue]="site.id">{{ site.name }}</option>
+    </select>
+  </label>
+  <div class="modal-actions">
+    <button type="button" class="btn-ghost" [disabled]="saving" (click)="closeForm()">Annuler</button>
+    <button type="button" class="btn-primary" [disabled]="saving" (click)="saveAccount()">
+      {{ saving ? 'Enregistrement…' : (editingId ? 'Enregistrer' : 'Créer le compte') }}
+    </button>
+  </div>
+</section>

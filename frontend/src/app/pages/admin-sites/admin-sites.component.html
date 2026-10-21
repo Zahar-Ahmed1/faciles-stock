@@ -1,0 +1,177 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Sites</h2>
+        <p class="subtitle">Créez un site et affectez-le au compte du responsable</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-primary" (click)="openCreate()">＋ Site</button>
+        <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+      </div>
+    </header>
+
+    <div *ngIf="error && !formOpen" class="alert-error">{{ error }}</div>
+    <div *ngIf="toast" class="toast-ok">{{ toast }}</div>
+
+    <div class="confirm" *ngIf="pendingDelete">
+      <p>Supprimer le site « {{ pendingDelete.name }} » ?</p>
+      <div>
+        <button type="button" class="btn-ghost" (click)="cancelRemove()">Annuler</button>
+        <button type="button" class="btn-danger" (click)="confirmRemove()">Supprimer</button>
+      </div>
+    </div>
+
+    <label class="search" *ngIf="!loading && sites.length">
+      <span aria-hidden="true">⌕</span>
+      <input
+        type="search"
+        name="site-search"
+        [(ngModel)]="query"
+        placeholder="Rechercher un site, un client ou une ville"
+        autocomplete="off"
+      />
+    </label>
+
+    <div *ngIf="loading" class="loading">Chargement…</div>
+
+    <div class="table-wrap" *ngIf="!loading && visibleSites.length">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <th>Client</th>
+            <th>Ville</th>
+            <th>Compte</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of visibleSites">
+            <td>
+              <strong>{{ s.name }}</strong>
+              <span class="code" *ngIf="s.code">{{ s.code }}</span>
+            </td>
+            <td data-label="Client">{{ s.clientName || '—' }}</td>
+            <td data-label="Ville">{{ s.city || '—' }}</td>
+            <td data-label="Compte">
+              <ng-container *ngIf="accountsFor(s).length; else noAccount">
+                <span class="account" *ngFor="let user of accountsFor(s)">{{ user.email }}</span>
+              </ng-container>
+              <ng-template #noAccount>—</ng-template>
+            </td>
+            <td class="actions">
+              <button type="button" class="btn-ghost" (click)="openEdit(s)">Modifier</button>
+              <button *ngIf="canDelete" type="button" class="btn-danger" (click)="askRemove(s)">
+                Supprimer
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading && sites.length && !visibleSites.length" class="empty">
+      Aucun site ne correspond à la recherche.
+    </div>
+
+    <div *ngIf="!loading && !sites.length && !error" class="empty">
+      <p>Aucun site pour le moment.</p>
+      <button type="button" class="btn-primary" (click)="openCreate()">Ajouter un site</button>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" *ngIf="formOpen" (click)="closeForm()"></div>
+<section class="modal" *ngIf="formOpen" role="dialog" aria-modal="true">
+  <h3>{{ editing ? 'Modifier le site' : 'Nouveau site' }}</h3>
+
+  <div *ngIf="error" class="alert-error">{{ error }}</div>
+
+  <label>
+    Client
+    <select [(ngModel)]="clientMode" name="clientMode">
+      <option value="existing" [disabled]="!clients.length">Client existant</option>
+      <option value="new">Nouveau client</option>
+    </select>
+  </label>
+
+  <label *ngIf="clientMode === 'existing'">
+    Choisir le client
+    <select [(ngModel)]="clientId" name="clientId">
+      <option *ngFor="let c of clients" [ngValue]="c.id">{{ c.name }}</option>
+    </select>
+  </label>
+
+  <label *ngIf="clientMode === 'new'">
+    Nom du client
+    <input type="text" name="newClientName" [(ngModel)]="newClientName" placeholder="Ex. Oracle" />
+  </label>
+
+  <label>
+    Nom du site
+    <input type="text" name="siteName" [(ngModel)]="name" placeholder="Ex. Oracle Rabat HQ" />
+  </label>
+
+  <label>
+    Ville
+    <input type="text" name="city" [(ngModel)]="city" placeholder="Ex. Rabat" />
+  </label>
+
+  <label>
+    Adresse
+    <input type="text" name="address" [(ngModel)]="address" placeholder="Adresse du site" />
+  </label>
+
+  <label>
+    Code
+    <input type="text" name="code" [(ngModel)]="code" placeholder="Optionnel" />
+  </label>
+
+  <fieldset class="account" *ngIf="canAssignAccount">
+    <legend>Compte du site</legend>
+    <label>
+      Responsable
+      <select [(ngModel)]="accountMode" name="accountMode">
+        <option value="existing" [disabled]="!accounts.length">Compte existant</option>
+        <option value="new">Nouveau compte</option>
+        <option value="none">Aucun compte</option>
+      </select>
+    </label>
+
+    <label *ngIf="accountMode === 'existing'">
+      Compte
+      <select [(ngModel)]="accountUserId" name="accountUserId">
+        <option *ngFor="let user of accounts" [ngValue]="user.id">{{ accountLabel(user) }}</option>
+      </select>
+    </label>
+
+    <ng-container *ngIf="accountMode === 'new'">
+      <label>
+        Prénom
+        <input type="text" name="accountFirstName" [(ngModel)]="accountFirstName" />
+      </label>
+      <label>
+        Nom
+        <input type="text" name="accountLastName" [(ngModel)]="accountLastName" />
+      </label>
+      <label>
+        E-mail
+        <input type="email" name="accountEmail" [(ngModel)]="accountEmail" placeholder="responsable@example.com" />
+      </label>
+      <label>
+        Mot de passe
+        <input type="password" name="accountPassword" [(ngModel)]="accountPassword" />
+      </label>
+    </ng-container>
+  </fieldset>
+
+  <div class="modal-actions">
+    <button type="button" class="btn-ghost" [disabled]="saving" (click)="closeForm()">Annuler</button>
+    <button type="button" class="btn-primary" [disabled]="saving" (click)="save()">
+      {{ saving ? 'Enregistrement…' : 'Enregistrer' }}
+    </button>
+  </div>
+</section>

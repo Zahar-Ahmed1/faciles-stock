@@ -1,0 +1,22 @@
+RewriteEngine On
+
+# Le code PHP n'est pas accessible directement.
+RewriteRule ^facilty-api(/|$) - [F,L]
+
+# Fichier interne du déploiement, pas une page du site.
+<Files ".ftp-deploy-sync-state.json">
+  Require all denied
+</Files>
+
+# API PHP. La seconde règle ne doit pas réécrire index.php (boucle Apache).
+RewriteRule ^api/index\.php$ - [L]
+RewriteRule ^api/?$ api/index.php [L,QSA]
+RewriteRule ^api/.+ api/index.php [L,QSA]
+
+# Fichiers réels du build Angular (js, css, images)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Routes Angular
+RewriteRule ^ index.html [L]

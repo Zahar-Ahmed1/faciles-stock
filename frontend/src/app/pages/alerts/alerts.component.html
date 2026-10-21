@@ -1,0 +1,117 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Alertes de stock</h2>
+        <p class="subtitle">
+          {{ countUnread }} alerte(s) non traitée(s) sur {{ items.length }} au total.
+        </p>
+      </div>
+      <div class="header-actions">
+        <select
+          class="form-select"
+          [ngModel]="filterStatus"
+          (ngModelChange)="filterStatus = $event; load()"
+        >
+          <option value="UNREAD">Non lus</option>
+          <option value="ALL">Tous les statuts</option>
+        </select>
+        <select
+          class="form-select"
+          [ngModel]="filterType"
+          (ngModelChange)="onFilterTypeChange($event)"
+        >
+          <option value="ALL">Tous les types</option>
+          <option value="LOW_STOCK">Stock faible</option>
+          <option value="OUT_OF_STOCK">Rupture de stock</option>
+        </select>
+        <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+      </div>
+    </header>
+
+    <div *ngIf="error" class="alert-error">{{ error }}</div>
+
+    <div *ngIf="loading" class="loading">
+      <div class="spinner"></div>
+      Chargement des alertes…
+    </div>
+
+    <ng-container *ngIf="!loading">
+      <div *ngIf="filtered.length === 0 && !error" class="empty">
+        <div class="empty-icon">🎉</div>
+        <p>Aucune alerte pour ces critères.</p>
+      </div>
+
+      <div *ngIf="filtered.length > 0" class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Produit</th>
+              <th *ngIf="auth.hasRole('ADMIN', 'MANAGER')">Site</th>
+              <th>Message</th>
+              <th>Statut</th>
+              <th>Date</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              *ngFor="let a of filtered; trackBy: trackById"
+              [class.row-unread]="a.status === 'UNREAD'"
+            >
+              <td>
+                <span class="pill" [ngClass]="colorClassForType(a.type)">
+                  {{ labelType(a.type) }}
+                </span>
+              </td>
+              <td class="cell-product">
+                <img
+                  *ngIf="a.productImageUrl"
+                  [src]="a.productImageUrl"
+                  [alt]="a.productName || ''"
+                  class="thumb"
+                />
+                <div>
+                  <div class="product-title">
+                    {{ a.productName || ('Produit #' + a.productId) }}
+                  </div>
+                </div>
+              </td>
+              <td *ngIf="auth.hasRole('ADMIN', 'MANAGER')">
+                {{ a.siteName || ('Site #' + a.siteId) }}
+              </td>
+              <td class="mono">{{ a.message }}</td>
+              <td>
+                <span class="badge" [ngClass]="classStatus(a.status)">
+                  {{ labelStatus(a.status) }}
+                </span>
+              </td>
+              <td class="mono">{{ formatDate(a.createdAt) }}</td>
+              <td class="col-actions">
+                <button
+                  type="button"
+                  class="btn-link"
+                  [disabled]="a.status !== 'UNREAD' || busyIds.has(a.id)"
+                  (click)="markRead(a)"
+                >
+                  {{ busyIds.has(a.id) ? '…' : 'Marquer lu' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-link primary"
+                  [disabled]="a.status === 'RESOLVED' || busyIds.has(a.id)"
+                  (click)="resolve(a)"
+                >
+                  {{ busyIds.has(a.id) ? '…' : 'Résoudre' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+  </main>
+</div>

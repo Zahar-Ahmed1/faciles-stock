@@ -1,0 +1,204 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Historique des mouvements</h2>
+        <p class="subtitle">
+          {{ total }} opération(s) enregistrée(s) dans la base de données.
+        </p>
+      </div>
+      <div class="header-actions">
+        <button
+          *ngIf="auth.hasRole('ADMIN', 'MANAGER')"
+          type="button"
+          class="btn-ghost"
+          (click)="exportFile('excel')"
+          [disabled]="exporting || total === 0"
+          title="Enregistre toutes les lignes des filtres"
+        >
+          Excel
+        </button>
+        <button
+          *ngIf="auth.hasRole('ADMIN', 'MANAGER')"
+          type="button"
+          class="btn-ghost"
+          (click)="exportFile('pdf')"
+          [disabled]="exporting || total === 0"
+          title="Enregistre toutes les lignes des filtres"
+        >
+          PDF
+        </button>
+        <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+      </div>
+    </header>
+
+    <section class="filters">
+      <div class="filter-group" *ngIf="!ownSiteOnly">
+        <label>Site</label>
+        <select
+          class="form-control"
+          [ngModel]="siteId"
+          (ngModelChange)="onSiteFilterChange($event)"
+        >
+          <option [ngValue]="null">Tous les sites</option>
+          <option *ngFor="let s of sites" [ngValue]="s.id">
+            {{ s.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Produit</label>
+        <select
+          class="form-control"
+          [ngModel]="productId"
+          (ngModelChange)="onProductFilterChange($event)"
+        >
+          <option [ngValue]="null">Tous les produits</option>
+          <option *ngFor="let p of products" [ngValue]="p.id">
+            {{ p.reference + ' · ' + p.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Type</label>
+        <select
+          class="form-control"
+          [ngModel]="type"
+          (ngModelChange)="type = $event; resetPagination()"
+        >
+          <option value="ALL">Tous</option>
+          <option value="ENTRY">Entrées (+)</option>
+          <option value="EXIT">Sorties (−)</option>
+          <option value="ADJUSTMENT">Ajustements</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Du</label>
+        <input
+          type="date"
+          class="form-control"
+          [ngModel]="from"
+          (ngModelChange)="from = $event; resetPagination()"
+        />
+      </div>
+
+      <div class="filter-group">
+        <label>Au</label>
+        <input
+          type="date"
+          class="form-control"
+          [ngModel]="to"
+          (ngModelChange)="to = $event; resetPagination()"
+        />
+      </div>
+
+      <div class="filter-group">
+        <label>Lignes / page</label>
+        <select
+          class="form-control"
+          [ngModel]="perPage"
+          (ngModelChange)="onPerPageChange($event)"
+        >
+          <option [ngValue]="10">10</option>
+          <option [ngValue]="25">25</option>
+          <option [ngValue]="50">50</option>
+          <option [ngValue]="100">100</option>
+        </select>
+      </div>
+    </section>
+
+    <div *ngIf="error" class="alert-error">{{ error }}</div>
+
+    <div *ngIf="loading" class="loading">
+      <div class="spinner"></div>
+      Chargement de l'historique…
+    </div>
+
+    <ng-container *ngIf="!loading">
+      <div *ngIf="items.length === 0 && !error" class="empty">
+        <div class="empty-icon">📭</div>
+        <p>Aucun mouvement ne correspond à ces filtres.</p>
+      </div>
+
+      <div *ngIf="items.length > 0" class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Produit</th>
+              <th *ngIf="auth.hasRole('ADMIN')">Site</th>
+              <th>Type</th>
+              <th>Quantité</th>
+              <th class="mono">Stock avant</th>
+              <th class="mono">Stock après</th>
+              <th>Utilisateur</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let m of items; trackBy: trackById">
+              <td class="mono date-col">{{ formatDate(m.createdAt) }}</td>
+              <td class="cell-product">
+                <img
+                  *ngIf="productImage(m.productId)"
+                  [src]="productImage(m.productId)"
+                  [alt]="productName(m.productId)"
+                  class="thumb"
+                />
+                <div>
+                  <div class="product-title">{{ productName(m.productId) }}</div>
+                </div>
+              </td>
+              <td *ngIf="auth.hasRole('ADMIN')">
+                {{ siteName(m.siteId) }}
+              </td>
+              <td>
+                <span class="pill" [ngClass]="classType(m.type)">
+                  {{ labelType(m.type) }}
+                </span>
+              </td>
+              <td class="qty-col">
+                <span [class.qty-minus]="m.type === 'EXIT'" [class.qty-plus]="m.type === 'ENTRY'">
+                  {{ signedQuantity(m) }}
+                </span>
+              </td>
+              <td class="mono">{{ m.stockBefore }}</td>
+              <td class="mono">{{ m.stockAfter }}</td>
+              <td>Utilisateur #{{ m.userId }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pagination">
+          <button type="button" class="btn-page" (click)="prevPage()" [disabled]="page === 1">
+            ‹
+          </button>
+          <button
+            *ngFor="let p of pageNumbers"
+            type="button"
+            class="btn-page"
+            [class.active]="p === page"
+            (click)="goToPage(p)"
+          >
+            {{ p }}
+          </button>
+          <button
+            type="button"
+            class="btn-page"
+            (click)="nextPage()"
+            [disabled]="page === totalPages"
+          >
+            ›
+          </button>
+          <span class="meta">
+            Page {{ page }} / {{ totalPages }}
+          </span>
+        </div>
+      </div>
+    </ng-container>
+  </main>
+</div>

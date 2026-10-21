@@ -1,0 +1,105 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <h2>Livraisons Facilyx</h2>
+        <p class="subtitle">
+          {{ pending.length }} alerte(s) à traiter — proposez une quantité. Le manager et le responsable doivent confirmer.
+        </p>
+      </div>
+      <div class="header-actions">
+        <select
+          class="form-select site-filter"
+          [ngModel]="filterSiteId"
+          (ngModelChange)="onSiteFilterChange($event)"
+        >
+          <option [ngValue]="'ALL'">Tous les sites</option>
+          <option *ngFor="let s of sites" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+        <select
+          class="form-select"
+          [ngModel]="filterType"
+          (ngModelChange)="filterType = $event"
+        >
+          <option value="ALL">Tous types</option>
+          <option value="LOW_STOCK">Stock bas</option>
+          <option value="OUT_OF_STOCK">Rupture</option>
+        </select>
+        <button type="button" class="btn-ghost" (click)="load()">⟳ Actualiser</button>
+      </div>
+    </header>
+
+    <div *ngIf="error" class="alert-error">{{ error }}</div>
+    <div *ngIf="toast" class="toast-ok">{{ toast }}</div>
+
+    <div *ngIf="loading" class="loading">Chargement…</div>
+
+    <div *ngIf="!loading && pending.length === 0" class="empty">
+      <div class="empty-icon">✓</div>
+      <p>Aucune livraison en attente.</p>
+    </div>
+
+    <div class="cards" *ngIf="!loading && pending.length">
+      <article class="delivery-card" *ngFor="let a of pending">
+        <div class="row">
+          <span class="pill" [class.out]="a.type === 'OUT_OF_STOCK'">
+            {{ labelType(a.type) }}
+          </span>
+          <span class="date">Ouverte le {{ formatDate(a.createdAt) }}</span>
+        </div>
+        <h3>{{ a.productName || ('Produit #' + a.productId) }}</h3>
+        <p class="site">{{ a.siteName || ('Site #' + a.siteId) }}</p>
+        <p class="msg">{{ a.message }}</p>
+        <div class="meta">
+          <span>Stock alerte : <strong>{{ a.quantityAtAlert ?? '—' }}</strong></span>
+          <span>Seuil min : <strong>{{ a.threshold ?? '—' }}</strong></span>
+        </div>
+        <p class="pending-note" *ngIf="proposalFor(a) as proposal">
+          Proposition : {{ proposal.quantity }} unité(s) — {{ proposalStatus(proposal) }}
+        </p>
+        <button
+          type="button"
+          class="btn-deliver"
+          [disabled]="busyIds.has(a.id)"
+          (click)="openDeliver(a)"
+        >
+          {{ proposalFor(a) ? 'Modifier la proposition' : 'Proposer' }}
+        </button>
+      </article>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" *ngIf="deliverAlert" (click)="closeDeliver()"></div>
+  <div class="modal" *ngIf="deliverAlert">
+    <h3>Proposer une livraison</h3>
+    <p class="product">
+      {{ deliverAlert.productName }} · {{ deliverAlert.siteName }}
+    </p>
+    <p class="hint">Le stock n'augmente qu'après confirmation du manager et du responsable du site.</p>
+    <label>
+      Quantité proposée
+      <input
+        type="number"
+        min="1"
+        [(ngModel)]="deliverQty"
+        [disabled]="delivering"
+      />
+    </label>
+    <p class="hint">Suggestion : seuil min = {{ deliverAlert.threshold || 10 }}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" (click)="closeDeliver()" [disabled]="delivering">
+        Annuler
+      </button>
+      <button
+        type="button"
+        class="btn-deliver"
+        (click)="confirmDeliver()"
+        [disabled]="deliverQty < 1 || delivering"
+      >
+        {{ delivering ? 'Envoi…' : 'Envoyer la proposition' }}
+      </button>
+    </div>
+  </div>
+</div>

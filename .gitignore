@@ -1,0 +1,12 @@
+node_modules/
+frontend/dist/
+frontend/.angular/
+backend/vendor/
+backend/.env
+**/.env
+deploy/public_html/facilty-api/
+deploy/public_html/*.js
+deploy/public_html/*.css
+deploy/public_html/index.html
+.DS_Store
+*.log

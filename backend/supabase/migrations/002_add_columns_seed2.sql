@@ -1,0 +1,15 @@
+USE facility_stock;
+
+ALTER TABLE clients
+    ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL,
+    ADD COLUMN IF NOT EXISTS phone VARCHAR(50) NULL;
+
+ALTER TABLE sites
+    ADD COLUMN IF NOT EXISTS code VARCHAR(50) NULL;
+ALTER TABLE sites
+    ADD UNIQUE KEY IF NOT EXISTS uk_sites_code (code);
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS reference VARCHAR(80) NULL;
+ALTER TABLE products
+    ADD UNIQUE KEY IF NOT EXISTS uk_products_reference (reference);

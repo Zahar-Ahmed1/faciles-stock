@@ -1,0 +1,61 @@
+<article class="stock-card" [ngClass]="statusClass">
+  <div class="card-status"></div>
+
+  <div class="image-wrap">
+    <img
+      *ngIf="stock.productImageUrl; else placeholder"
+      [src]="stock.productImageUrl"
+      [alt]="stock.productName"
+      loading="lazy"
+    />
+    <ng-template #placeholder>
+      <div class="placeholder-icon">📦</div>
+    </ng-template>
+  </div>
+
+  <h3 class="product-name" [title]="stock.productName || ''">
+    {{ stock.productName || 'Produit #' + stock.productId }}
+  </h3>
+
+  <div class="quantity-wrap">
+    <span class="quantity">{{ stock.quantity }}</span>
+    <span class="unit">{{ stock.productUnit || 'unités' }}</span>
+  </div>
+
+  <div class="status-badge">
+    <span class="dot"></span>
+    {{ statusLabel }}
+  </div>
+
+  <div class="min-bar">
+    <div class="min-label">Seuil min. : {{ stock.minimumQuantity }}</div>
+    <div class="bar">
+      <div
+        class="bar-fill"
+        [style.width.%]="barPercent"
+        [ngClass]="statusClass"
+      ></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button
+      class="btn-action btn-decrement"
+      type="button"
+      [disabled]="!canDecrement"
+      (click)="onClickDecrement()"
+    >
+      <span *ngIf="loadingOp === 'decrement'">…</span>
+      <span *ngIf="loadingOp !== 'decrement'">−</span>
+    </button>
+    <button
+      class="btn-action btn-increment"
+      type="button"
+      [disabled]="!canIncrement"
+      (click)="onClickIncrement()"
+    >
+      <span *ngIf="loadingOp === 'increment'">…</span>
+      <span *ngIf="loadingOp !== 'increment'">+</span>
+    </button>
+  </div>
+</article>

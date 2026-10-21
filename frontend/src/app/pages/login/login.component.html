@@ -1,0 +1,60 @@
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="brand">
+      <div class="logo">FX</div>
+      <h1>Facilyx Stock</h1>
+      <p>Livraison & stock site</p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" autocomplete="off">
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          placeholder="manager@example.com"
+          [disabled]="loading"
+        />
+        <div
+          *ngIf="form.get('email')?.touched && form.get('email')?.invalid"
+          class="error-text"
+        >
+          Email invalide
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Mot de passe</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="••••••••"
+          [disabled]="loading"
+        />
+        <div
+          *ngIf="
+            form.get('password')?.touched && form.get('password')?.invalid
+          "
+          class="error-text"
+        >
+          Mot de passe requis
+        </div>
+      </div>
+
+      <div *ngIf="error" class="server-error">
+        {{ error }}
+      </div>
+
+      <button type="submit" class="btn-primary" [disabled]="loading || form.invalid">
+        <span *ngIf="!loading">Se connecter</span>
+        <span *ngIf="loading">Connexion…</span>
+      </button>
+    </form>
+
+    <div class="footer-note">
+      © {{ year }} Facility Management
+    </div>
+  </div>
+</div>

@@ -1,0 +1,140 @@
+<div class="layout">
+  <app-navbar></app-navbar>
+
+  <main class="content">
+    <header class="page-header">
+      <div>
+        <div class="site-selector-row">
+          <h2>
+            Stock du site
+            <span class="site-name" *ngIf="canChangeSite && sites.length">
+              · {{ selectedSiteName }}
+            </span>
+          </h2>
+          <select
+            *ngIf="canChangeSite"
+            class="form-select site-select"
+            [ngModel]="siteId"
+            (ngModelChange)="onSiteChange($event)"
+            [disabled]="siteLoading || sites.length === 0"
+          >
+            <option *ngFor="let s of sites" [ngValue]="s.id">
+              {{ s.name }}
+            </option>
+          </select>
+        </div>
+        <p class="subtitle">
+          Cliquez sur <strong>−</strong> pour retirer une unité, <strong>+</strong> pour en ajouter.
+        </p>
+      </div>
+      <button type="button" class="btn-ghost" (click)="refreshAll()">
+        ⟳ Actualiser tout
+      </button>
+    </header>
+
+    <section class="stats-grid">
+      <div class="kpi card">
+        <div class="kpi-icon total">📦</div>
+        <div>
+          <div class="kpi-label">Produits référencés</div>
+          <div class="kpi-value">{{ stats.totalProducts }}</div>
+        </div>
+      </div>
+      <div class="kpi card">
+        <div class="kpi-icon units">🔢</div>
+        <div>
+          <div class="kpi-label">Unités en stock</div>
+          <div class="kpi-value">{{ stats.totalUnits | number:undefined:'fr-FR' }}</div>
+        </div>
+      </div>
+      <div class="kpi card warn" [class.has-count]="stats.lowStockCount > 0">
+        <div class="kpi-icon low">⚠️</div>
+        <div>
+          <div class="kpi-label">Stock faible</div>
+          <div class="kpi-value">{{ stats.lowStockCount }}</div>
+        </div>
+      </div>
+      <div class="kpi card danger" [class.has-count]="stats.outOfStockCount > 0">
+        <div class="kpi-icon out">🛑</div>
+        <div>
+          <div class="kpi-label">En rupture</div>
+          <div class="kpi-value">{{ stats.outOfStockCount }}</div>
+        </div>
+      </div>
+      <div class="kpi card alerts" *ngIf="stats.unreadAlerts > 0">
+        <div class="kpi-icon alert">🔔</div>
+        <div>
+          <div class="kpi-label">Alertes non lues</div>
+          <div class="kpi-value">{{ stats.unreadAlerts }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="two-cols" *ngIf="recentAlerts.length > 0 && showAlertsPreview">
+      <div class="alerts-panel card">
+        <div class="panel-header">
+          <h3>⚠️ Alertes en cours</h3>
+          <button type="button" class="btn-tiny" (click)="showAlertsPreview = false">×</button>
+        </div>
+        <ul class="alerts-list">
+          <li *ngFor="let a of recentAlerts; trackBy: trackByAlertId" [class.unread]="a.status === 'UNREAD'">
+            <span class="alert-pill" [ngClass]="classAlertType(a.type)">
+              {{ labelAlertType(a.type) }}
+            </span>
+            <div class="alert-body">
+              <div class="alert-title">
+                {{ a.productName || ('Produit #' + a.productId) }}
+                <span *ngIf="a.status === 'UNREAD'" class="unread-dot"></span>
+              </div>
+              <div class="alert-meta">
+                {{ a.message }} · {{ formatDate(a.createdAt) }}
+              </div>
+            </div>
+            <button
+              *ngIf="a.status === 'UNREAD'"
+              type="button"
+              class="btn-tiny primary"
+              (click)="markAlertRead(a)"
+            >
+              Lu
+            </button>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <div *ngIf="error" class="alert-error">
+      {{ error }}
+    </div>
+
+    <div *ngIf="loading" class="loading">
+      <div class="spinner"></div>
+      Chargement du stock…
+    </div>
+
+    <ng-container *ngIf="!loading">
+      <div *ngIf="stocks.length === 0 && !error" class="empty">
+        <div class="empty-icon">📭</div>
+        <p>Aucun produit n'est rattaché à ce site pour le moment.</p>
+      </div>
+
+      <div class="grid" *ngIf="stocks.length > 0">
+        <app-stock-card
+          *ngFor="let s of stocks; trackBy: trackByStockId"
+          [stock]="s"
+          [loadingOp]="busyIds.get(s.id) || null"
+          (decrement)="decrementStock($event)"
+          (increment)="incrementStock($event)"
+        ></app-stock-card>
+      </div>
+    </ng-container>
+  </main>
+
+  <div
+    *ngIf="toast"
+    class="toast"
+    [ngClass]="toast.type === 'success' ? 'toast-success' : 'toast-error'"
+  >
+    {{ toast.text }}
+  </div>
+</div>
