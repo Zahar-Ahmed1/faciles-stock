@@ -292,3 +292,49 @@ php -S localhost:8899 -t frontend/dist/facility-stock-frontend deploy/router.php
 ```
 
 Ouvrir [http://localhost:8899](http://localhost:8899). Les comptes seed restent ceux du README. Ce test utilise le `.env` local du dossier `backend/`.
+
+## CI/CD
+
+Le dépôt est [github.com/Zahar-Ahmed1/faciles-stock](https://github.com/Zahar-Ahmed1/faciles-stock). Deux branches :
+
+| Branche | Rôle |
+|---|---|
+| `develop` | Modifications du jour. Le contrôle CI vérifie Angular et le PHP. Le serveur ne change pas. |
+| `prod` | Version en ligne. Un envoi sur cette branche lance le déploiement vers Hostinger. |
+
+Les workflows sont dans `.github/workflows/`. Ils ne peuvent pas modifier le dépôt. Ils ne remplacent pas `facilty-api`, `.env`, `ONPITCH` ni `ONPITCHTEST`.
+
+### Préparer l'accès FTP, une seule fois
+
+1. Dans hPanel : **Fichiers → Comptes FTP → Créer un compte FTP**.
+2. Répertoire : `public_html`. Notez le hostname FTP, l'utilisateur complet et le mot de passe. Le hostname n'est pas l'adresse du gestionnaire de fichiers.
+3. Sur GitHub : **Settings → Secrets and variables → Actions → New repository secret**.
+
+| Secret | Valeur |
+|---|---|
+| `FTP_SERVER` | hostname ou IP FTP, sans `ftp://` |
+| `FTP_USERNAME` | utilisateur complet du compte FTP |
+| `FTP_PASSWORD` | mot de passe choisi dans hPanel |
+| `FTP_SERVER_DIR` | `./` si le compte s'ouvre déjà dans `public_html` |
+
+### Mettre la dernière version sur le serveur
+
+Depuis le dossier du projet, sur la branche `develop` :
+
+```bash
+git add .
+git commit -m "Décrire la modification."
+git push origin develop
+```
+
+Attendez que **CI** soit vert dans l'onglet [Actions](https://github.com/Zahar-Ahmed1/faciles-stock/actions). Puis envoyez cette version sur `prod` :
+
+```bash
+git push origin develop:prod
+```
+
+GitHub compile l'interface et copie `index.html`, les fichiers `.js` et `.css`, `assets`, `.htaccess` et le pont `api/` dans `public_html`.
+
+Ouvrez **Actions**. La ligne **CD** doit être sur la branche `prod` et finir en vert. Rechargez le site.
+
+Pour relancer le même déploiement sans nouveau commit : **Actions → CD → Run workflow**, branche `prod`.
