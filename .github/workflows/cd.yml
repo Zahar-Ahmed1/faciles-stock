@@ -1,6 +1,6 @@
 name: CD
 
-# Lecture seule. Ne se lance pas sur main, master ni prod : la branche en production n'est pas déployée.
+# Lecture seule. Seule la branche prod envoie les fichiers sur Hostinger.
 permissions:
   contents: read
 
@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
+      - prod
 
 jobs:
   package:
     name: Préparer et envoyer public_html
-    if: ${{ github.ref_name != 'main' && github.ref_name != 'master' && github.ref_name != 'prod' }}
+    if: ${{ github.ref_name == 'prod' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
