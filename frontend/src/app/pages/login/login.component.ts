@@ -23,10 +23,10 @@ export class LoginComponent {
   ) {
     this.form = this.fb.group({
       email: [
-        'manager@example.com',
+        '',
         [Validators.required, Validators.email],
       ],
-      password: ['password', [Validators.required, Validators.minLength(4)]],
+      password: ['', [Validators.required, Validators.minLength(4)]],
     });
   }
 
